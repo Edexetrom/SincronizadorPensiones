@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "gspread": "^0.0.0",
+    "pandas": "^0.0.3"
+  }
+}

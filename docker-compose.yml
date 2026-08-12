@@ -8,4 +8,4 @@ container_name: sincronizador_worker
 restart: unless-stopped
 env_file:
 - .env
-command: ["sh", "-c", "while true; do echo 'Ejecutando sincronizacion...'; python consolidar.py; echo 'Esperando 60s...'; sleep 60; done"]
+command: ["sh", "-c", "while true; do echo 'Ejecutando sincronizacion...'; python Sync_Folios.py; echo 'Esperando 60s...'; sleep 60; done"]

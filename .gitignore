@@ -1,5 +1,6 @@
 .env
 generar_base64_key.py
+base64_key.txt
 __pycache__/
 /node_modules
 /.venv

@@ -1,0 +1,14 @@
+version: '3.8'services:sincronizador-pensiones:build: .image: sincronizador-app:latest
+container_name: sincronizador_worker
+restart: unless-stopped
+env_file:
+- .env
+command: >
+sh -c "
+while true; do
+echo '🚀 Ejecutando sincronización...';
+python consolidar.py;
+echo '⏳ Esperando 60 segundos para la próxima ejecución...';
+sleep 60;
+done
+"

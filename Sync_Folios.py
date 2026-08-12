@@ -211,7 +211,7 @@ def consolidar_pensiones():
     datos_para_ordenar.sort(key=llave_orden)
     
     # Armamos la matriz final colocando el encabezado hasta arriba
-    matriz_salida = [["# DE PENSION", "Nombre", "SA", "PRIMERA", "SEGUNDA", "TERCERA"]] + datos_para_ordenar
+    matriz_salida = [["# DE PENSION", "NOMBRE", "SA", "PRIMERA", "SEGUNDA", "TERCERA"]] + datos_para_ordenar
         
     total_registros = len(matriz_salida) - 1
 

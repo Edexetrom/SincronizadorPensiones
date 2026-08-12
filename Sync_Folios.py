@@ -17,6 +17,16 @@ def obtener_servicio_sheets():
     # Manejamos los saltos de línea de la llave privada que suelen romperse en los .env
     private_key = os.getenv("GOOGLE_PRIVATE_KEY")
     if private_key:
+        private_key = private_key.strip("'\"")
+        # Si la llave está en base64 (no contiene el encabezado típico) la decodificamos
+        if "-----BEGIN PRIVATE KEY-----" not in private_key:
+            import base64
+            try:
+                decoded_key = base64.b64decode(private_key).decode('utf-8')
+                if "-----BEGIN PRIVATE KEY-----" in decoded_key:
+                    private_key = decoded_key
+            except Exception:
+                pass
         private_key = private_key.replace('\\n', '\n')
     
     # Construimos el diccionario de credenciales de la Service Account

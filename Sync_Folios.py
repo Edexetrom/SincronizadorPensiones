@@ -176,6 +176,8 @@ def consolidar_pensiones():
             def inyectar_valor(idx_origen, pos_destino):
                 val = obtener_valor_seguro(fila, idx_origen)
                 if val: # Si hay valor en la celda, se sobreescribe
+                    if pos_destino == 2 and not val.startswith(('SA-', 'sa-', 'Sa-', 'sA-')):
+                        return
                     registro[pos_destino] = val
                     
             inyectar_valor(idx_nom, 1) # Nombre

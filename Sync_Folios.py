@@ -121,75 +121,156 @@ def consolidar_pensiones():
 
     print(f"✅ Descarga completada en {round(time.time() - tiempo_inicio, 2)} segundos.")
 
-    # Orden de procesamiento de menor jerarquía a mayor jerarquía.
-    # El último en procesarse (SA) tendrá la última palabra (sobrescribe).
-    # Formato de mapeo: [Indice_Pension, Nombre, SA, P, S, T]
-    configuraciones = [
-        {"nombre": "T-ra", "datos": datos_t_ra, "mapa": [10, 11, 8, 5, 3, 1]},
-        {"nombre": "S-da", "datos": datos_s_da, "mapa": [8, 9, 6, 3, 1, -1]},
-        {"nombre": "P-ra", "datos": datos_p_ra, "mapa": [6, 7, 4, 1, -1, -1]},
-        {"nombre": "PTE-CONT", "datos": datos_pte_cont, "mapa": [10, 11, 8, 5, -1, -1]},
-        {"nombre": "SA", "datos": datos_sa, "mapa": [10, 11, 8, -1, -1, -1]}
-    ]
-
-    diccionario_maestro = {}
-
-    print("🧠 Procesando jerarquías y eliminando duplicados en memoria...")
-    
-    for config in configuraciones:
-        datos = config["datos"]
-        idx_pen, idx_nom, idx_sa, idx_p, idx_s, idx_t = config["mapa"]
-        
-        # Ignoramos encabezados (asumiendo que están en la fila 0)
+    # Función auxiliar para cargar y procesar datos de una hoja
+    def cargar_hoja(datos, mapa, nombre_hoja):
+        idx_pen, idx_nom, idx_sa, idx_p, idx_s, idx_t = mapa
+        filas = []
         if len(datos) < 2:
-            continue
-            
-        pensiones_vistas_esta_hoja = set()
-        
-        # Leemos la matriz de abajo hacia arriba (más recientes primero)
+            return filas
         for fila in reversed(datos[1:]):
             if not fila:
                 continue
-                
-            # Extraer pensión
             pension = obtener_valor_seguro(fila, idx_pen)
-            
-            # Reglas de descarte
             if not pension or pension.startswith('-'):
                 continue
-                
-            # Evitar procesar duplicados dentro de la misma hoja 
-            # (ya leímos el más reciente al ir de abajo hacia arriba)
-            if pension in pensiones_vistas_esta_hoja:
-                continue
+            sa = obtener_valor_seguro(fila, idx_sa)
+            # Validar SA (debe comenzar con 'SA-')
+            if sa and not sa.lower().startswith('sa-'):
+                sa = ""
+            p = obtener_valor_seguro(fila, idx_p)
+            s = obtener_valor_seguro(fila, idx_s)
+            t = obtener_valor_seguro(fila, idx_t)
+            nombre = obtener_valor_seguro(fila, idx_nom)
             
-            pensiones_vistas_esta_hoja.add(pension)
+            filas.append({
+                "pension": pension,
+                "nombre": nombre,
+                "sa": sa,
+                "p": p,
+                "s": s,
+                "t": t
+            })
+        return filas
+
+    print("🧠 Procesando jerarquías y eliminando duplicados en memoria...")
+    
+    # Cargar datos de todas las hojas (de abajo hacia arriba)
+    filas_sa = cargar_hoja(datos_sa, [10, 11, 8, -1, -1, -1], "SA")
+    filas_pte_cont = cargar_hoja(datos_pte_cont, [10, 11, 8, 5, -1, -1], "PTE-CONT")
+    filas_p_ra = cargar_hoja(datos_p_ra, [6, 7, 4, 1, -1, -1], "P-ra")
+    filas_s_da = cargar_hoja(datos_s_da, [8, 9, 6, 3, 1, -1], "S-da")
+    filas_t_ra = cargar_hoja(datos_t_ra, [10, 11, 8, 5, 3, 1], "T-ra")
+
+    # Construir diccionarios de búsqueda con llaves compuestas
+    dict_sa = {}
+    for r in filas_sa:
+        key = (r["pension"], r["sa"])
+        if key not in dict_sa:
+            dict_sa[key] = r["nombre"]
+
+    dict_p = {}
+    # P-ra (menor prioridad)
+    for r in filas_p_ra:
+        key = (r["pension"], r["sa"])
+        if key not in dict_p:
+            dict_p[key] = (r["p"], r["nombre"], "P-ra")
+    # PTE-CONT (mayor prioridad)
+    seen_pte_cont = set()
+    for r in filas_pte_cont:
+        key = (r["pension"], r["sa"])
+        if key not in seen_pte_cont:
+            dict_p[key] = (r["p"], r["nombre"], "PTE-CONT")
+            seen_pte_cont.add(key)
+
+    dict_s = {}
+    for r in filas_s_da:
+        key = (r["pension"], r["sa"], r["p"])
+        if key not in dict_s:
+            dict_s[key] = (r["s"], r["nombre"])
+
+    dict_t = {}
+    for r in filas_t_ra:
+        key = (r["pension"], r["sa"], r["p"], r["s"])
+        if key not in dict_t:
+            dict_t[key] = (r["t"], r["nombre"])
+
+    # Consolidación escalonada
+    registros_consolidados = []
+    processed_sa = set()
+    processed_p = set()
+    processed_s = set()
+
+    # Paso 1: Procesar desde SA
+    for (pension, sa), nombre_sa in dict_sa.items():
+        p_key = (pension, sa)
+        p_val, nombre_p, _ = dict_p.get(p_key, ("", "", ""))
+        
+        s_key = (pension, sa, p_val)
+        s_val, nombre_s = dict_s.get(s_key, ("", ""))
+        
+        t_key = (pension, sa, p_val, s_val)
+        t_val, nombre_t = dict_t.get(t_key, ("", ""))
+        
+        nombre_final = nombre_sa or nombre_p or nombre_s or nombre_t
+        
+        registros_consolidados.append([pension, nombre_final, sa, p_val, s_val, t_val])
+        
+        processed_sa.add((pension, sa))
+        if p_val:
+            processed_p.add((pension, sa, p_val))
+        if s_val:
+            processed_s.add((pension, sa, p_val, s_val))
+
+    # Paso 2: Procesar desde P
+    for (pension, sa), (p_val, nombre_p, _) in dict_p.items():
+        if (pension, sa) in processed_sa:
+            continue
             
-            # Inicializar o recuperar el registro
-            if pension not in diccionario_maestro:
-                # [Pension, Nombre, SA, PRIMERA, SEGUNDA, TERCERA]
-                diccionario_maestro[pension] = [pension, "", "", "", "", ""]
+        s_key = (pension, sa, p_val)
+        s_val, nombre_s = dict_s.get(s_key, ("", ""))
+        
+        t_key = (pension, sa, p_val, s_val)
+        t_val, nombre_t = dict_t.get(t_key, ("", ""))
+        
+        nombre_final = nombre_p or nombre_s or nombre_t
+        
+        registros_consolidados.append([pension, nombre_final, sa, p_val, s_val, t_val])
+        
+        processed_sa.add((pension, sa))
+        if p_val:
+            processed_p.add((pension, sa, p_val))
+        if s_val:
+            processed_s.add((pension, sa, p_val, s_val))
+
+    # Paso 3: Procesar desde S
+    for (pension, sa, p_val), (s_val, nombre_s) in dict_s.items():
+        if (pension, sa, p_val) in processed_p:
+            continue
             
-            registro = diccionario_maestro[pension]
+        t_key = (pension, sa, p_val, s_val)
+        t_val, nombre_t = dict_t.get(t_key, ("", ""))
+        
+        nombre_final = nombre_s or nombre_t
+        
+        registros_consolidados.append([pension, nombre_final, sa, p_val, s_val, t_val])
+        
+        processed_sa.add((pension, sa))
+        if p_val:
+            processed_p.add((pension, sa, p_val))
+        if s_val:
+            processed_s.add((pension, sa, p_val, s_val))
+
+    # Paso 4: Procesar desde T
+    for (pension, sa, p_val, s_val), (t_val, nombre_t) in dict_t.items():
+        if (pension, sa, p_val, s_val) in processed_s:
+            continue
             
-            # Helper interno para sobreescribir valores si existen en la celda
-            def inyectar_valor(idx_origen, pos_destino):
-                val = obtener_valor_seguro(fila, idx_origen)
-                if val: # Si hay valor en la celda, se sobreescribe
-                    if pos_destino == 2 and not val.startswith(('SA-', 'sa-', 'Sa-', 'sA-')):
-                        return
-                    registro[pos_destino] = val
-                    
-            inyectar_valor(idx_nom, 1) # Nombre
-            inyectar_valor(idx_sa, 2)  # SA
-            inyectar_valor(idx_p, 3)   # PRIMERA
-            inyectar_valor(idx_s, 4)   # SEGUNDA
-            inyectar_valor(idx_t, 5)   # TERCERA
+        registros_consolidados.append([pension, nombre_t, sa, p_val, s_val, t_val])
 
     print("📝 Preparando y ordenando datos...")
     
-    # Extraemos solo los valores para ordenarlos en Python (super rápido)
-    datos_para_ordenar = list(diccionario_maestro.values())
+    # Extraemos los valores consolidados
+    datos_para_ordenar = registros_consolidados
 
     # Función inteligente para manejar números vs texto vs celdas vacías en los folios
     def llave_orden(fila):

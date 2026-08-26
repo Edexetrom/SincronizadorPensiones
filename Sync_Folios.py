@@ -267,6 +267,68 @@ def consolidar_pensiones():
             
         registros_consolidados.append([pension, nombre_t, sa, p_val, s_val, t_val])
 
+    # === VALIDADOR DE PENSIONES DUPLICADAS ===
+    print("🔍 Buscando y resolviendo pensiones duplicadas...")
+    
+    def obtener_valor_comparable(valor):
+        """Convierte un valor de folio en una tupla comparable."""
+        v = str(valor).strip()
+        if not v:
+            return (-1, 0, "")
+        numeros = re.findall(r'\d+', v)
+        if numeros:
+            return (1, int(numeros[0]), v)
+        return (0, 0, v)
+
+    def obtener_nivel_y_valor_comparable(row):
+        """Identifica el nivel de prioridad (SA=0, P=1, S=2, T=3, Vacío=4) y su valor comparable."""
+        sa = row[2].strip()
+        p_val = row[3].strip()
+        s_val = row[4].strip()
+        t_val = row[5].strip()
+        
+        if sa:
+            return 0, obtener_valor_comparable(sa)
+        if p_val:
+            return 1, obtener_valor_comparable(p_val)
+        if s_val:
+            return 2, obtener_valor_comparable(s_val)
+        if t_val:
+            return 3, obtener_valor_comparable(t_val)
+        return 4, obtener_valor_comparable("")
+
+    # Agrupar registros por número de pensión
+    grupos_pension = {}
+    for row in registros_consolidados:
+        pension = row[0]
+        if pension not in grupos_pension:
+            grupos_pension[pension] = []
+        grupos_pension[pension].append(row)
+
+    registros_unicos = []
+    for pension, filas in grupos_pension.items():
+        if len(filas) == 1:
+            registros_unicos.append(filas[0])
+        else:
+            # Encontrar el nivel de prioridad mínimo (el tipo de folio más prioritario presente)
+            info_filas = []
+            min_nivel = 4
+            for r in filas:
+                nivel, val_comp = obtener_nivel_y_valor_comparable(r)
+                info_filas.append((r, nivel, val_comp))
+                if nivel < min_nivel:
+                    min_nivel = nivel
+            
+            # Quedarse únicamente con las filas que tienen ese nivel de prioridad
+            filas_candidatas = [item for item in info_filas if item[1] == min_nivel]
+            
+            # Seleccionar la fila con el valor comparable más alto
+            mejor_fila = max(filas_candidatas, key=lambda x: x[2])[0]
+            registros_unicos.append(mejor_fila)
+
+    registros_consolidados = registros_unicos
+    # =========================================
+
     print("📝 Preparando y ordenando datos...")
     
     # Extraemos los valores consolidados

@@ -134,9 +134,13 @@ def consolidar_pensiones():
             if not pension or pension.startswith('-'):
                 continue
             sa = obtener_valor_seguro(fila, idx_sa)
-            # Validar SA (debe comenzar con 'SA-')
-            if sa and not sa.lower().startswith('sa-'):
-                sa = ""
+            # Validar y limpiar SA (puede tener prefijos como 'ALTA ' o 'ALT ')
+            if sa:
+                match = re.search(r'\b(sa)\s*[-]?\s*(.+)', sa, re.IGNORECASE)
+                if match:
+                    sa = "SA-" + match.group(2).strip()
+                else:
+                    sa = ""
             p = obtener_valor_seguro(fila, idx_p)
             s = obtener_valor_seguro(fila, idx_s)
             t = obtener_valor_seguro(fila, idx_t)
